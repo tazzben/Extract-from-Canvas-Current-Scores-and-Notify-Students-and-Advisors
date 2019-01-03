@@ -1,0 +1,225 @@
+/*
+Google Apps Script to Extract Current Scores and Notify Students and Advisors
+
+This script uses the Canvas API to extract the current scores from a list of courses (defined in COURSE_LIST) in a given an integer term (defined as the script property TERM).  It notifies the students of their current score in the these courses over email.  If the student's score is below a threshold (defined as the script property THRESHOLD), the student's name, email, score, and course are written to a spreadsheet (defined in DANGER_SHEET).
+
+The script must have the following script properties defined (set under File->Project Properties->Script Properties within the Apps Scripts editor): 
+
++-----------------+---------------------------------------------------------------------------------------------------------------+
+| Script Property | Example                                                                                                       |
++-----------------+---------------------------------------------------------------------------------------------------------------+
+| THRESHOLD       | 75                                                                                                            |
++-----------------+---------------------------------------------------------------------------------------------------------------+
+| DOMAIN          | unomaha.edu                                                                                                   |
++-----------------+---------------------------------------------------------------------------------------------------------------+
+| MESSAGE_SUBJECT | CBA Periodic Grade Report                                                                                     |
++-----------------+---------------------------------------------------------------------------------------------------------------+
+| CANVAS_API      | https://unomaha.instructure.com                                                                               |
++-----------------+---------------------------------------------------------------------------------------------------------------+
+| DEVELOPER_KEY   | <Developer Key From Canvas>                                                                                   |
++-----------------+---------------------------------------------------------------------------------------------------------------+
+| MESSAGE_HEADER  | This message is to inform you of your standing in select CBA classes.  As of right now, your score in         |
++-----------------+---------------------------------------------------------------------------------------------------------------+
+| MESSAGE_FOOTER  | This score is based on the current data in Canvas.  Please contact your instructor if you have any questions. |
++-----------------+---------------------------------------------------------------------------------------------------------------+
+| TERM            | 1                                                                                                             |
++-----------------+---------------------------------------------------------------------------------------------------------------+
+| COURSE_LIST     | https://docs.google.com/spreadsheets/d/1r1byAiO_6KhUSyJcVXAvTqOP0Uqw9eyQi-AIIDU7WBY/edit#gid=0                |
++-----------------+---------------------------------------------------------------------------------------------------------------+
+| DANGER_SHEET    | https://docs.google.com/spreadsheets/d/1lM-bomPSIGyYm0Myt-T2KQXIYsAcZB3jUrUlci5H_Gk/edit#gid=0                |
++-----------------+---------------------------------------------------------------------------------------------------------------+
+
+The function main could be setup as a time driven trigger inside of the G Suite Developer Hub (the script must be run manually by the user once to authorize the OAuth scopes).  As a result this information can be sent on a period schedule (e.g. monthly).
+
+For help, please contact Ben Smith <bosmith@unomaha.edu>.
+
+*/
+
+
+var extractDataFromCanvas = {};
+extractDataFromCanvas.developerKey = "";
+extractDataFromCanvas.canvasAPI = "";
+extractDataFromCanvas.danagerSpreadsheet = "";
+extractDataFromCanvas.courseList = "";
+extractDataFromCanvas.domain = "";
+extractDataFromCanvas.threshold = 100.0;
+extractDataFromCanvas.term = 1;
+
+
+extractDataFromCanvas.loadSettings = function () {
+    var scriptProperties = PropertiesService.getScriptProperties();
+    extractDataFromCanvas.developerKey = "Bearer " + scriptProperties.getProperty('DEVELOPER_KEY');
+    extractDataFromCanvas.canvasAPI = scriptProperties.getProperty('CANVAS_API');
+    extractDataFromCanvas.danagerSpreadsheet = scriptProperties.getProperty('DANGER_SHEET');
+    extractDataFromCanvas.courseList = scriptProperties.getProperty('COURSE_LIST');
+    extractDataFromCanvas.domain = scriptProperties.getProperty('DOMAIN');
+    createContent.message = scriptProperties.getProperty('MESSAGE_HEADER');
+    createContent.footer = scriptProperties.getProperty('MESSAGE_FOOTER');
+    createContent.subject = scriptProperties.getProperty('MESSAGE_SUBJECT');
+    extractDataFromCanvas.threshold = parseFloat(scriptProperties.getProperty('THRESHOLD'));
+    if (isNaN(extractDataFromCanvas.threshold)) {
+        extractDataFromCanvas.threshold = 100.0;
+    }
+    extractDataFromCanvas.term = parseInt(scriptProperties.getProperty('TERM'));
+    if (isNaN(extractDataFromCanvas.term)) {
+        extractDataFromCanvas.term = 1;
+    }
+};
+
+
+extractDataFromCanvas.getCourses = function () {
+    var url = extractDataFromCanvas.canvasAPI + "/api/v1/courses?state[]=available&per_page=500";
+    return extractDataFromCanvas.extractFromCanvas(url, []);
+};
+
+extractDataFromCanvas.findCourses = function (data) {
+    var courseURLS = [];
+    for (var i = 0; i < data.length; i++) {
+        var course = data[i].course_code.toString().substr(0, 8);
+        var termid = data[i].enrollment_term_id;
+        if (loadCourseList.couseList.indexOf(course) > -1 && termid == extractDataFromCanvas.term) {
+            courseURLS.push({
+                course: course,
+                id: data[i].id
+            })
+        }
+    }
+    return courseURLS;
+};
+
+extractDataFromCanvas.extractFromCanvas = function (apiCall, data) {
+    var developerKey = extractDataFromCanvas.developerKey;
+    var cData = data || [];
+    var headers = {
+        Authorization: developerKey
+    };
+    var options = {
+        headers: headers
+    };
+    var response = UrlFetchApp.fetch(apiCall, options);
+    var responseheaders = response.getHeaders();
+    var jsondata = response.getContentText();
+    var parsedata = JSON.parse(jsondata);
+    if (Array.isArray(parsedata)) {
+        cData = cData.concat(parsedata);
+    }
+    var links = linkheaderparser.parseLinkHeader(responseheaders.Link);
+    if (links.next) {
+        return extractDataFromCanvas.extractFromCanvas(links.next.href, cData);
+    } else {
+        return cData;
+    }
+};
+
+extractDataFromCanvas.loopCourses = function (courses) {
+    var data = [];
+    for (var i = 0; i < courses.length; i++) {
+        var course = courses[i].course;
+        var id = courses[i].id;
+        var url = extractDataFromCanvas.canvasAPI + "/api/v1/courses/" + id.toString() + "/enrollments?per_page=500"
+        var enrollments = extractDataFromCanvas.extractFromCanvas(url, []);
+        if (Array.isArray(enrollments)) {
+            data = data.concat(enrollments);
+        }
+    }
+    return data;
+};
+
+var loadCourseList = {};
+loadCourseList.couseList = [];
+
+loadCourseList.LoadCourseFile = function () {
+    var ss = SpreadsheetApp.openByUrl(extractDataFromCanvas.courseList);
+    if (ss !== false) {
+        var sheets = ss.getSheets();
+        if (sheets.length > 0) {
+            var firstSheet = sheets[0];
+            var data = firstSheet.getDataRange().getValues();
+            for (var i = 0; i < data.length; i++) {
+                for (var j = 0; j < data[i].length; j++) {
+                    if (data[i][j].toString().trim().length > 0) {
+                        loadCourseList.couseList.push(data[i][j].toString().trim());
+                    }
+                }
+            }
+        }
+    }
+    return ss;
+};
+
+var updateSpreadsheetReport = {};
+
+updateSpreadsheetReport.createSpreadsheet = function () {
+    var header = [
+        ['Student', 'Course', 'E-Mail', 'Current Score']
+    ];
+    var cDate = JSON.stringify(new Date());
+    var ss = SpreadsheetApp.openByUrl(extractDataFromCanvas.danagerSpreadsheet);
+    if (ss !== false) {
+        var sheet = ss.insertSheet("Report - " + cDate, 0);
+        sheet.activate();
+        var headerRange = sheet.getRange(1, 1, 1, header[0].length);
+        headerRange.setValues(header);
+        return sheet;
+    }
+    return ss;
+};
+
+updateSpreadsheetReport.addContentToSpreadSheet = function (sheet, contentData) {
+    var setActiveRow = sheet.getLastRow() + 1;
+    var range = sheet.getRange(setActiveRow, 1, contentData.length, contentData[0].length);
+    range.setValues(contentData);
+};
+
+
+var createContent = {};
+createContent.message = "";
+createContent.footer = "";
+createContent.subject = "";
+
+createContent.createMessages = function (data) {
+    var sheet = updateSpreadsheetReport.createSpreadsheet();
+    for (var i = 0; i < data.length; i++) {
+        // Based on Enrollments API
+
+        var course = data[i].sis_course_id.substr(0, 8).trim();
+        if (data[i].grades && data[i].user) {
+            var name = data[i].user.name;
+            var email = data[i].user.login_id;
+            var score = data[i].grades.current_score;
+            if (typeof score !== 'undefined' && score !== null) {
+                var message = name + ",\r\n" + createContent.message + " " + course + " is " + score + ". " + createContent.footer;
+                if (score <= extractDataFromCanvas.threshold) {
+                    var content = [
+                        [name, course, email, score]
+                    ];
+                    updateSpreadsheetReport.addContentToSpreadSheet(sheet, content);
+                }
+                var emailSubject = createContent.subject + " - " + course;
+                //Disable while testing
+                newEmailClass.sendEmail(emailSubject, email, message);
+            }
+        }
+    }
+};
+
+newEmailClass = {};
+
+newEmailClass.sendEmail = function (subjectLine, email, emailContent) {
+    if (extractDataFromCanvas.domain.length > 0 && email.length > 0 && email.indexOf("@") === -1) {
+        email += "@" + extractDataFromCanvas.domain;
+    }
+    if (emailContent.length > 0 && validateEmail.validate(email)) {
+        subjectLine = subjectLine || "(No subject)";
+        MailApp.sendEmail(email, subjectLine, emailContent);
+    }
+};
+
+function main() {
+    extractDataFromCanvas.loadSettings();
+    loadCourseList.LoadCourseFile();
+    var courseList = extractDataFromCanvas.getCourses();
+    var coursestoRun = extractDataFromCanvas.findCourses(courseList);
+    var enrollements = extractDataFromCanvas.loopCourses(coursestoRun);
+    createContent.createMessages(enrollements);
+}
