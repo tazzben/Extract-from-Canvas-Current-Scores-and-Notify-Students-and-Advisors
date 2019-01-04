@@ -1,7 +1,7 @@
 /*
 Google Apps Script to Extract Current Scores and Notify Students and Advisors
 
-This script uses the Canvas API to extract the current scores from a list of courses (defined in COURSE_LIST) in a given an integer term (defined as the script property TERM).  It notifies the students of their current score in the these courses over email.  If the student's score is below a threshold (defined as the script property THRESHOLD), the student's name, email, score, and course are written to a spreadsheet (defined in DANGER_SHEET).
+This script uses the Canvas API to extract the current scores from a list of courses (defined in COURSE_LIST) in a given an integer term (defined as the script property TERM).  It notifies the students of their current score in the these courses over email.  If the student's score is below a threshold (defined as the script property THRESHOLD), the student's name, email, score, and course are written to a spreadsheet (defined in DANGER_SHEET).  EMAIL_STORAGE is used to store emails for future sending if the script executing user is over the daily email quota.
 
 The script must have the following script properties defined (set under File->Project Properties->Script Properties within the Apps Scripts editor): 
 
@@ -28,7 +28,8 @@ The script must have the following script properties defined (set under File->Pr
 +-----------------+---------------------------------------------------------------------------------------------------------------+
 | DANGER_SHEET    | https://docs.google.com/spreadsheets/d/1lM-bomPSIGyYm0Myt-T2KQXIYsAcZB3jUrUlci5H_Gk/edit#gid=0                |
 +-----------------+---------------------------------------------------------------------------------------------------------------+
-
+| EMAIL_STORAGE   | https://docs.google.com/spreadsheets/d/13tdBNFECF-6nMxAMhCFwbg2m1PB1iicYNpxRopJskZM/edit#gid=0                |
++-----------------+---------------------------------------------------------------------------------------------------------------+
 The function main could be setup as a time driven trigger inside of the G Suite Developer Hub (the script must be run manually by the user once to authorize the OAuth scopes).  As a result this information can be sent on a period schedule (e.g. monthly).
 
 For help, please contact Ben Smith <bosmith@unomaha.edu>.
@@ -56,6 +57,7 @@ extractDataFromCanvas.loadSettings = function () {
     createContent.message = scriptProperties.getProperty('MESSAGE_HEADER');
     createContent.footer = scriptProperties.getProperty('MESSAGE_FOOTER');
     createContent.subject = scriptProperties.getProperty('MESSAGE_SUBJECT');
+    newEmailClass.sheetStorageURL = scriptProperties.getProperty('EMAIL_STORAGE');
     extractDataFromCanvas.threshold = parseFloat(scriptProperties.getProperty('THRESHOLD'));
     if (isNaN(extractDataFromCanvas.threshold)) {
         extractDataFromCanvas.threshold = 100.0;
@@ -196,14 +198,22 @@ createContent.createMessages = function (data) {
                     updateSpreadsheetReport.addContentToSpreadSheet(sheet, content);
                 }
                 var emailSubject = createContent.subject + " - " + course;
-                //Disable while testing
-                newEmailClass.sendEmail(emailSubject, email, message);
+
+                if (newEmailClass.quota > 0) {
+                    newEmailClass.sendEmail(emailSubject, email, message);
+                    newEmailClass.quota = newEmailClass.quota - 1;
+                } else {
+                    newEmailClass.writeToSheet(emailSubject, email, message);
+                }
             }
         }
     }
 };
 
 newEmailClass = {};
+newEmailClass.quota = MailApp.getRemainingDailyQuota();
+newEmailClass.sheetStorage = false;
+newEmailClass.sheetStorageURL = "";
 
 newEmailClass.sendEmail = function (subjectLine, email, emailContent) {
     if (extractDataFromCanvas.domain.length > 0 && email.length > 0 && email.indexOf("@") === -1) {
@@ -211,7 +221,67 @@ newEmailClass.sendEmail = function (subjectLine, email, emailContent) {
     }
     if (emailContent.length > 0 && validateEmail.validate(email)) {
         subjectLine = subjectLine || "(No subject)";
+        //Disable while testing
         MailApp.sendEmail(email, subjectLine, emailContent);
+    }
+};
+
+newEmailClass.openSheet = function () {
+    var ss = SpreadsheetApp.openByUrl(newEmailClass.sheetStorageURL);
+    if (ss !== false) {
+        var sheets = ss.getSheets();
+        if (sheets.length > 0) {
+            newEmailClass.sheetStorage = sheets[0];
+        }
+    }
+};
+
+newEmailClass.writeToSheet = function (subjectLine, email, emailContent) {
+    if (newEmailClass.sheetStorage === false) {
+        newEmailClass.openSheet();
+        newEmailClass.createTrigger();
+    }
+    if (newEmailClass.sheetStorage !== false) {
+        var datatowrite = [
+            [subjectLine, email, emailContent]
+        ];
+        var range = newEmailClass.sheetStorage.getRange((newEmailClass.sheetStorage.getLastRow() + 1), 1, 1, datatowrite[0].length);
+        range.setValues(datatowrite);
+    }
+};
+
+newEmailClass.createTrigger = function () {
+    ScriptApp.newTrigger("cleanOutEmailList")
+        .timeBased()
+        .after(1500 * 60 * 1000)
+        .create();
+};
+
+
+newEmailClass.readSheet = function () {
+    var createNewTrigger = false;
+    if (newEmailClass.sheetStorage === false) {
+        newEmailClass.openSheet();
+    }
+    if (newEmailClass.sheetStorage !== false) {
+        var data = newEmailClass.sheetStorage.getDataRange().getValues();
+        for (var i = 0; i < data.length; i++) {
+            if (newEmailClass.quota > 0) {
+                newEmailClass.sheetStorage.deleteRow(1);
+            } else if (data[i].length > 2) {
+                createNewTrigger = true;
+            }
+            if (data[i].length > 2 && newEmailClass.quota > 0) {
+                var subject = data[i][0].toString();
+                var email = data[i][1].toString();
+                var body = data[i][2].toString();
+                newEmailClass.sendEmail(subject, email, body);
+                newEmailClass.quota = newEmailClass.quota - 1;
+            }
+        }
+    }
+    if (createNewTrigger) {
+        newEmailClass.createTrigger();
     }
 };
 
@@ -222,4 +292,9 @@ function main() {
     var coursestoRun = extractDataFromCanvas.findCourses(courseList);
     var enrollements = extractDataFromCanvas.loopCourses(coursestoRun);
     createContent.createMessages(enrollements);
+}
+
+function cleanOutEmailList() {
+    extractDataFromCanvas.loadSettings();
+    newEmailClass.readSheet();
 }
