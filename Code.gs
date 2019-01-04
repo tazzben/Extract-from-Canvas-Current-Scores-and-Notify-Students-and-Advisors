@@ -181,6 +181,7 @@ createContent.subject = "";
 
 createContent.createMessages = function (data) {
     var sheet = updateSpreadsheetReport.createSpreadsheet();
+    var contentToWrite = [];
     for (var i = 0; i < data.length; i++) {
         // Based on Enrollments API
 
@@ -192,10 +193,8 @@ createContent.createMessages = function (data) {
             if (typeof score !== 'undefined' && score !== null) {
                 var message = name + ",\r\n" + createContent.message + " " + course + " is " + score + ". " + createContent.footer;
                 if (score <= extractDataFromCanvas.threshold) {
-                    var content = [
-                        [name, course, email, score]
-                    ];
-                    updateSpreadsheetReport.addContentToSpreadSheet(sheet, content);
+                    var content = [name, course, email, score];
+                    contentToWrite.push(content);
                 }
                 var emailSubject = createContent.subject + " - " + course;
 
@@ -208,12 +207,15 @@ createContent.createMessages = function (data) {
             }
         }
     }
+    updateSpreadsheetReport.addContentToSpreadSheet(sheet, contentToWrite);
+    newEmailClass.saveToSheet();
 };
 
 newEmailClass = {};
 newEmailClass.quota = MailApp.getRemainingDailyQuota();
 newEmailClass.sheetStorage = false;
 newEmailClass.sheetStorageURL = "";
+newEmailClass.storageRows = [];
 
 newEmailClass.sendEmail = function (subjectLine, email, emailContent) {
     if (extractDataFromCanvas.domain.length > 0 && email.length > 0 && email.indexOf("@") === -1) {
@@ -242,11 +244,18 @@ newEmailClass.writeToSheet = function (subjectLine, email, emailContent) {
         newEmailClass.createTrigger();
     }
     if (newEmailClass.sheetStorage !== false) {
-        var datatowrite = [
-            [subjectLine, email, emailContent]
-        ];
-        var range = newEmailClass.sheetStorage.getRange((newEmailClass.sheetStorage.getLastRow() + 1), 1, 1, datatowrite[0].length);
-        range.setValues(datatowrite);
+        var datatowrite = [subjectLine, email, emailContent];
+        newEmailClass.storageRows.push(datatowrite)
+    }
+};
+
+newEmailClass.saveToSheet = function (){
+    if (newEmailClass.sheetStorage !== false && newEmailClass.storageRows.length>0) {
+        if(newEmailClass.storageRows[0].length>0){
+             var range = newEmailClass.sheetStorage.getRange((newEmailClass.sheetStorage.getLastRow() + 1), 1, newEmailClass.storageRows.length, newEmailClass.storageRows[0].length);
+             range.setValues(newEmailClass.storageRows);
+             newEmailClass.storageRows = [];
+        }
     }
 };
 
@@ -264,12 +273,16 @@ newEmailClass.readSheet = function () {
         newEmailClass.openSheet();
     }
     if (newEmailClass.sheetStorage !== false) {
+        var numberofrows = 0;
         var data = newEmailClass.sheetStorage.getDataRange().getValues();
         for (var i = 0; i < data.length; i++) {
             if (newEmailClass.quota > 0) {
-                newEmailClass.sheetStorage.deleteRow(1);
+                numberofrows = numberofrows + 1;
             } else if (data[i].length > 2) {
                 createNewTrigger = true;
+                break;
+            }else{
+                numberofrows = numberofrows + 1; 
             }
             if (data[i].length > 2 && newEmailClass.quota > 0) {
                 var subject = data[i][0].toString();
@@ -278,6 +291,9 @@ newEmailClass.readSheet = function () {
                 newEmailClass.sendEmail(subject, email, body);
                 newEmailClass.quota = newEmailClass.quota - 1;
             }
+        }
+        if (numberofrows > 0){
+            newEmailClass.sheetStorage.deleteRows(1,numberofrows);
         }
     }
     if (createNewTrigger) {
