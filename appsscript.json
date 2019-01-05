@@ -1,5 +1,5 @@
 {
-  "timeZone": "America/Chicago",
+  "timeZone": "America/Mexico_City",
   "dependencies": {
   },
   "exceptionLogging": "STACKDRIVER"

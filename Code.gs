@@ -168,9 +168,13 @@ updateSpreadsheetReport.createSpreadsheet = function () {
 };
 
 updateSpreadsheetReport.addContentToSpreadSheet = function (sheet, contentData) {
-    var setActiveRow = sheet.getLastRow() + 1;
-    var range = sheet.getRange(setActiveRow, 1, contentData.length, contentData[0].length);
-    range.setValues(contentData);
+    if (contentData.length > 0) {
+        if (contentData[0].length > 0) {
+            var setActiveRow = sheet.getLastRow() + 1;
+            var range = sheet.getRange(setActiveRow, 1, contentData.length, contentData[0].length);
+            range.setValues(contentData);
+        }
+    }
 };
 
 
@@ -249,12 +253,12 @@ newEmailClass.writeToSheet = function (subjectLine, email, emailContent) {
     }
 };
 
-newEmailClass.saveToSheet = function (){
-    if (newEmailClass.sheetStorage !== false && newEmailClass.storageRows.length>0) {
-        if(newEmailClass.storageRows[0].length>0){
-             var range = newEmailClass.sheetStorage.getRange((newEmailClass.sheetStorage.getLastRow() + 1), 1, newEmailClass.storageRows.length, newEmailClass.storageRows[0].length);
-             range.setValues(newEmailClass.storageRows);
-             newEmailClass.storageRows = [];
+newEmailClass.saveToSheet = function () {
+    if (newEmailClass.sheetStorage !== false && newEmailClass.storageRows.length > 0) {
+        if (newEmailClass.storageRows[0].length > 0) {
+            var range = newEmailClass.sheetStorage.getRange((newEmailClass.sheetStorage.getLastRow() + 1), 1, newEmailClass.storageRows.length, newEmailClass.storageRows[0].length);
+            range.setValues(newEmailClass.storageRows);
+            newEmailClass.storageRows = [];
         }
     }
 };
@@ -281,8 +285,8 @@ newEmailClass.readSheet = function () {
             } else if (data[i].length > 2) {
                 createNewTrigger = true;
                 break;
-            }else{
-                numberofrows = numberofrows + 1; 
+            } else {
+                numberofrows = numberofrows + 1;
             }
             if (data[i].length > 2 && newEmailClass.quota > 0) {
                 var subject = data[i][0].toString();
@@ -292,8 +296,8 @@ newEmailClass.readSheet = function () {
                 newEmailClass.quota = newEmailClass.quota - 1;
             }
         }
-        if (numberofrows > 0){
-            newEmailClass.sheetStorage.deleteRows(1,numberofrows);
+        if (numberofrows > 0) {
+            newEmailClass.sheetStorage.deleteRows(1, numberofrows);
         }
     }
     if (createNewTrigger) {
