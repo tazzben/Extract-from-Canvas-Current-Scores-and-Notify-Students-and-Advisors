@@ -77,13 +77,15 @@ extractDataFromCanvas.getCourses = function () {
 extractDataFromCanvas.findCourses = function (data) {
     var courseURLS = [];
     for (var i = 0; i < data.length; i++) {
-        var course = data[i].course_code.toString().substr(0, 8);
-        var termid = data[i].enrollment_term_id;
-        if (loadCourseList.couseList.indexOf(course) > -1 && termid == extractDataFromCanvas.term) {
-            courseURLS.push({
-                course: course,
-                id: data[i].id
-            })
+        if (data[i].course_code && data[i].enrollment_term_id) {
+            var course = data[i].course_code.toString().substr(0, 8);
+            var termid = data[i].enrollment_term_id;
+            if (loadCourseList.couseList.indexOf(course) > -1 && termid == extractDataFromCanvas.term) {
+                courseURLS.push({
+                    course: course,
+                    id: data[i].id
+                });
+            }
         }
     }
     return courseURLS;
@@ -118,7 +120,7 @@ extractDataFromCanvas.loopCourses = function (courses) {
     for (var i = 0; i < courses.length; i++) {
         var course = courses[i].course;
         var id = courses[i].id;
-        var url = extractDataFromCanvas.canvasAPI + "/api/v1/courses/" + id.toString() + "/enrollments?per_page=500"
+        var url = extractDataFromCanvas.canvasAPI + "/api/v1/courses/" + id.toString() + "/enrollments?per_page=500&type[]=StudentEnrollment";
         var enrollments = extractDataFromCanvas.extractFromCanvas(url, []);
         if (Array.isArray(enrollments)) {
             data = data.concat(enrollments);
@@ -186,15 +188,19 @@ createContent.subject = "";
 createContent.createMessages = function (data) {
     var sheet = updateSpreadsheetReport.createSpreadsheet();
     var contentToWrite = [];
+
     for (var i = 0; i < data.length; i++) {
         // Based on Enrollments API
-
-        var course = data[i].sis_course_id.substr(0, 8).trim();
-        if (data[i].grades && data[i].user) {
+        
+        if (data[i].grades && data[i].user && data[i].sis_course_id) {
+            
+            var course = data[i].sis_course_id.toString().substr(0, 8).trim();
             var name = data[i].user.name;
             var email = data[i].user.login_id;
             var score = data[i].grades.current_score;
-            if (typeof score !== 'undefined' && score !== null) {
+            
+            if (typeof score !== 'undefined' && score !== null && typeof name !== 'undefined' && name !== null && typeof email !== 'undefined' && email !== null) {
+                
                 var message = name + ",\r\n" + createContent.message + " " + course + " is " + score + ". " + createContent.footer;
                 if (score <= extractDataFromCanvas.threshold) {
                     var content = [name, course, email, score];
