@@ -155,7 +155,7 @@ var updateSpreadsheetReport = {};
 
 updateSpreadsheetReport.createSpreadsheet = function () {
     var header = [
-        ['Student', 'Course', 'E-Mail', 'Current Score']
+        ['Student', 'Course', 'E-Mail', 'Current Score', 'Current Grade']
     ];
     var cDate = JSON.stringify(new Date());
     var ss = SpreadsheetApp.openByUrl(extractDataFromCanvas.danagerSpreadsheet);
@@ -191,19 +191,25 @@ createContent.createMessages = function (data) {
 
     for (var i = 0; i < data.length; i++) {
         // Based on Enrollments API
-        
+
         if (data[i].grades && data[i].user && data[i].sis_course_id) {
-            
+
             var course = data[i].sis_course_id.toString().substr(0, 8).trim();
             var name = data[i].user.name;
             var email = data[i].user.login_id;
             var score = data[i].grades.current_score;
-            
+
             if (typeof score !== 'undefined' && score !== null && typeof name !== 'undefined' && name !== null && typeof email !== 'undefined' && email !== null) {
-                
-                var message = name + ",\r\n" + createContent.message + " " + course + " is " + score + ". " + createContent.footer;
+                if (data[i].grades.current_grade) {
+                    var cgrade = data[i].grades.current_grade.toString().trim();
+                    var cgrademes = "Your current grade is a(n) \"" + cgrade + ".\" ";
+                } else {
+                    var cgrademes = "";
+                    var cgrade = "";
+                }
+                var message = name + ",\r\n" + createContent.message + " " + course + " is " + score + ". " + cgrademes + createContent.footer;
                 if (score <= extractDataFromCanvas.threshold) {
-                    var content = [name, course, email, score];
+                    var content = [name, course, email, score, cgrade];
                     contentToWrite.push(content);
                 }
                 var emailSubject = createContent.subject + " - " + course;
