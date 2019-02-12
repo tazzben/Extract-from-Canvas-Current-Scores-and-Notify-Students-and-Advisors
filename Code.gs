@@ -120,7 +120,7 @@ extractDataFromCanvas.loopCourses = function (courses) {
     for (var i = 0; i < courses.length; i++) {
         var course = courses[i].course;
         var id = courses[i].id;
-        var url = extractDataFromCanvas.canvasAPI + "/api/v1/courses/" + id.toString() + "/enrollments?per_page=500&type[]=StudentEnrollment";
+        var url = extractDataFromCanvas.canvasAPI + "/api/v1/courses/" + id.toString() + "/enrollments?per_page=500&type[]=StudentEnrollment&state[]=active";
         var enrollments = extractDataFromCanvas.extractFromCanvas(url, []);
         if (Array.isArray(enrollments)) {
             data = data.concat(enrollments);
@@ -209,7 +209,7 @@ createContent.createMessages = function (data) {
                 }
                 var message = name + ",\r\n" + createContent.message + " " + course + " is " + score + ". " + cgrademes + createContent.footer;
                 if (score <= extractDataFromCanvas.threshold) {
-                    var content = [name, course, email, score, cgrade];
+                    var content = [name, data[i].sis_course_id.toString(), email, score, cgrade];
                     contentToWrite.push(content);
                 }
                 var emailSubject = createContent.subject + " - " + course;
