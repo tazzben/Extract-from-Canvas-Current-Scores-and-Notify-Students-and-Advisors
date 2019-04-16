@@ -1,7 +1,7 @@
 /*
 Google Apps Script to Extract Current Scores and Notify Students and Advisors
 
-This script uses the Canvas API to extract the current scores from a list of courses (defined in COURSE_LIST) in a given an integer term (defined as the script property TERM).  It notifies the students of their current score in the these courses over email.  If the student's score is below a threshold (defined as the script property THRESHOLD), the student's name, email, score, and course are written to a spreadsheet (defined in DANGER_SHEET).  EMAIL_STORAGE is used to store emails for future sending if the script executing user is over the daily email quota.
+This script uses the Canvas API to extract the current scores from all enrollments for which the Canvas developer account has access.  It notifies the students of their current score in the these courses over email.  If the student's score is below a threshold (defined as the script property THRESHOLD), the student's name, email, score, and course are written to a spreadsheet (defined in DANGER_SHEET).  EMAIL_STORAGE is used to store emails for future sending if the script executing user is over the daily email quota.
 
 The script must have the following script properties defined (set under File->Project Properties->Script Properties within the Apps Scripts editor): 
 
@@ -22,10 +22,6 @@ The script must have the following script properties defined (set under File->Pr
 +-----------------+---------------------------------------------------------------------------------------------------------------+
 | MESSAGE_FOOTER  | This score is based on the current data in Canvas.  Please contact your instructor if you have any questions. |
 +-----------------+---------------------------------------------------------------------------------------------------------------+
-| TERM            | 1                                                                                                             |
-+-----------------+---------------------------------------------------------------------------------------------------------------+
-| COURSE_LIST     | https://docs.google.com/spreadsheets/d/1r1byAiO_6KhUSyJcVXAvTqOP0Uqw9eyQi-AIIDU7WBY/edit#gid=0                |
-+-----------------+---------------------------------------------------------------------------------------------------------------+
 | DANGER_SHEET    | https://docs.google.com/spreadsheets/d/1lM-bomPSIGyYm0Myt-T2KQXIYsAcZB3jUrUlci5H_Gk/edit#gid=0                |
 +-----------------+---------------------------------------------------------------------------------------------------------------+
 | EMAIL_STORAGE   | https://docs.google.com/spreadsheets/d/13tdBNFECF-6nMxAMhCFwbg2m1PB1iicYNpxRopJskZM/edit#gid=0                |
@@ -41,10 +37,8 @@ var extractDataFromCanvas = {};
 extractDataFromCanvas.developerKey = "";
 extractDataFromCanvas.canvasAPI = "";
 extractDataFromCanvas.danagerSpreadsheet = "";
-extractDataFromCanvas.courseList = "";
 extractDataFromCanvas.domain = "";
 extractDataFromCanvas.threshold = 100.0;
-extractDataFromCanvas.term = 1;
 
 
 extractDataFromCanvas.loadSettings = function () {
@@ -52,7 +46,6 @@ extractDataFromCanvas.loadSettings = function () {
     extractDataFromCanvas.developerKey = "Bearer " + scriptProperties.getProperty('DEVELOPER_KEY');
     extractDataFromCanvas.canvasAPI = scriptProperties.getProperty('CANVAS_API');
     extractDataFromCanvas.danagerSpreadsheet = scriptProperties.getProperty('DANGER_SHEET');
-    extractDataFromCanvas.courseList = scriptProperties.getProperty('COURSE_LIST');
     extractDataFromCanvas.domain = scriptProperties.getProperty('DOMAIN');
     createContent.message = scriptProperties.getProperty('MESSAGE_HEADER');
     createContent.footer = scriptProperties.getProperty('MESSAGE_FOOTER');
@@ -62,30 +55,23 @@ extractDataFromCanvas.loadSettings = function () {
     if (isNaN(extractDataFromCanvas.threshold)) {
         extractDataFromCanvas.threshold = 100.0;
     }
-    extractDataFromCanvas.term = parseInt(scriptProperties.getProperty('TERM'));
-    if (isNaN(extractDataFromCanvas.term)) {
-        extractDataFromCanvas.term = 1;
-    }
 };
 
 
 extractDataFromCanvas.getCourses = function () {
-    var url = extractDataFromCanvas.canvasAPI + "/api/v1/courses?state[]=available&per_page=500";
+    var url = extractDataFromCanvas.canvasAPI + "/api/v1/courses?state[]=available&enrollment_state=active&per_page=500";
     return extractDataFromCanvas.extractFromCanvas(url, []);
 };
 
 extractDataFromCanvas.findCourses = function (data) {
     var courseURLS = [];
     for (var i = 0; i < data.length; i++) {
-        if (data[i].course_code && data[i].enrollment_term_id) {
+        if (data[i].course_code) {
             var course = data[i].course_code.toString().substr(0, 8);
-            var termid = data[i].enrollment_term_id;
-            if (loadCourseList.couseList.indexOf(course) > -1 && termid == extractDataFromCanvas.term) {
-                courseURLS.push({
-                    course: course,
-                    id: data[i].id
-                });
-            }
+            courseURLS.push({
+                course: course,
+                id: data[i].id
+            });
         }
     }
     return courseURLS;
@@ -127,28 +113,6 @@ extractDataFromCanvas.loopCourses = function (courses) {
         }
     }
     return data;
-};
-
-var loadCourseList = {};
-loadCourseList.couseList = [];
-
-loadCourseList.LoadCourseFile = function () {
-    var ss = SpreadsheetApp.openByUrl(extractDataFromCanvas.courseList);
-    if (ss !== false) {
-        var sheets = ss.getSheets();
-        if (sheets.length > 0) {
-            var firstSheet = sheets[0];
-            var data = firstSheet.getDataRange().getValues();
-            for (var i = 0; i < data.length; i++) {
-                for (var j = 0; j < data[i].length; j++) {
-                    if (data[i][j].toString().trim().length > 0) {
-                        loadCourseList.couseList.push(data[i][j].toString().trim());
-                    }
-                }
-            }
-        }
-    }
-    return ss;
 };
 
 var updateSpreadsheetReport = {};
@@ -319,7 +283,6 @@ newEmailClass.readSheet = function () {
 
 function main() {
     extractDataFromCanvas.loadSettings();
-    loadCourseList.LoadCourseFile();
     var courseList = extractDataFromCanvas.getCourses();
     var coursestoRun = extractDataFromCanvas.findCourses(courseList);
     var enrollements = extractDataFromCanvas.loopCourses(coursestoRun);
