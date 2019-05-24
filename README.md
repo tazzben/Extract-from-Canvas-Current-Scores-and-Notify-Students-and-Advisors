@@ -13,8 +13,6 @@ CANVAS_API      | https://unomaha.instructure.com
 DEVELOPER_KEY   | Developer Key From Canvas
 MESSAGE_HEADER  | This message is to inform you of your standing in select CBA classes.  As of right now, your score in   
 MESSAGE_FOOTER  | This score is based on the current data in Canvas.  Please contact your instructor if you have any questions. 
-TERM            | 1 
-COURSE_LIST     | https://docs.google.com/spreadsheets/d/1r1byAiO_6KhUSyJcVXAvTqOP0Uqw9eyQi-AIIDU7WBY/edit#gid=0
 DANGER_SHEET    | https://docs.google.com/spreadsheets/d/1lM-bomPSIGyYm0Myt-T2KQXIYsAcZB3jUrUlci5H_Gk/edit#gid=0 
 EMAIL_STORAGE   | https://docs.google.com/spreadsheets/d/13tdBNFECF-6nMxAMhCFwbg2m1PB1iicYNpxRopJskZM/edit#gid=0 
 
