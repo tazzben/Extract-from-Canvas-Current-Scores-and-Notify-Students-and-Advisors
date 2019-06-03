@@ -1,4 +1,4 @@
-Google Apps Script to Extract Current Scores and Notify Students and Advisors 
+Automated Early Warning System to Notify Students and Advisors: A Google Apps Script to Extract Current Scores from Canvas
 
 This script uses the Canvas API to extract the current scores from a list of courses (defined in COURSE_LIST) in a given an integer term (defined as the script property TERM).  It notifies the students of their current score in the these courses over email.  If the student's score is below a threshold (defined as the script property THRESHOLD), the student's name, email, score, and course are written to a spreadsheet (defined in DANGER_SHEET).  EMAIL_STORAGE is used to store emails for future sending if the script executing user is over the daily email quota.
 
