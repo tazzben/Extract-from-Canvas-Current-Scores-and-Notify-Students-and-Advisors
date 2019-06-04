@@ -131,6 +131,7 @@ extractDataFromCanvas.loopCourses = function (courses) {
 
 var loadCourseList = {};
 loadCourseList.couseList = [];
+loadCourseList.couseDes = [];
 
 loadCourseList.LoadCourseFile = function () {
     var ss = SpreadsheetApp.openByUrl(extractDataFromCanvas.courseList);
@@ -140,10 +141,15 @@ loadCourseList.LoadCourseFile = function () {
             var firstSheet = sheets[0];
             var data = firstSheet.getDataRange().getValues();
             for (var i = 0; i < data.length; i++) {
-                for (var j = 0; j < data[i].length; j++) {
-                    if (data[i][j].toString().trim().length > 0) {
-                        loadCourseList.couseList.push(data[i][j].toString().trim());
+                if (data[i][0].toString().trim().length > 0) {
+                    loadCourseList.couseList.push(data[i][0].toString().trim());
+                    var courseMes = "";
+                    if (data[i].length > 1){
+                        if (data[i][1].toString().trim().length > 0) {
+                            courseMes = data[i][1].toString().trim();
+                        }
                     }
+                    loadCourseList.couseDes.push(courseMes);
                 }
             }
         }
@@ -208,6 +214,10 @@ createContent.createMessages = function (data) {
                     var cgrade = "";
                 }
                 var message = name + ",\r\n" + createContent.message + " " + course + " is " + score + ". " + cgrademes + createContent.footer;
+                if (loadCourseList.couseList.indexOf(course) > -1){
+                    var mesPos = loadCourseList.couseList.indexOf(course);
+                    var message = message + "\r\n" + loadCourseList.courseMes[mesPos];
+                }
                 if (score <= extractDataFromCanvas.threshold) {
                     var content = [name, data[i].sis_course_id.toString(), email, score, cgrade];
                     contentToWrite.push(content);
