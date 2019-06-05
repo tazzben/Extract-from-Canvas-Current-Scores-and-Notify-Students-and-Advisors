@@ -213,10 +213,10 @@ createContent.createMessages = function (data) {
                     var cgrademes = "";
                     var cgrade = "";
                 }
-                var message = name + ",\r\n" + createContent.message + " " + course + " is " + score + ". " + cgrademes + createContent.footer;
+                var message = name + ",\r\n\r\n" + createContent.message + " " + course + " is " + score + ". " + cgrademes + createContent.footer;
                 if (loadCourseList.couseList.indexOf(course) > -1){
                     var mesPos = loadCourseList.couseList.indexOf(course);
-                    var message = message + "\r\n" + loadCourseList.courseMes[mesPos];
+                    var message = message + "\r\n\r\n" + loadCourseList.couseDes[mesPos];
                 }
                 if (score <= extractDataFromCanvas.threshold) {
                     var content = [name, data[i].sis_course_id.toString(), email, score, cgrade];
